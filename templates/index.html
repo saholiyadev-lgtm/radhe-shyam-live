@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Radhe Shyam Jewellers - Live Rates</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #0f0f12;
+            color: #ffffff;
+            margin: 0;
+            padding: 40px 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+            box-sizing: border-box;
+        }
+        .header-container {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        h1 {
+            color: #d4af37; /* Premium Gold Color */
+            margin: 0 0 5px 0;
+            letter-spacing: 2px;
+            font-size: 32px;
+            font-weight: 700;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.5);
+        }
+        .subtitle {
+            color: #a0a0a5;
+            font-size: 16px;
+            margin-bottom: 10px;
+            letter-spacing: 1px;
+        }
+        .live-indicator {
+            font-size: 13px;
+            color: #2ecc71;
+            font-weight: 600;
+            text-transform: uppercase;
+            animation: blink 1.5s infinite;
+        }
+        @keyframes blink {
+            50% { opacity: 0.3; }
+        }
+        .container {
+            width: 100%;
+            max-width: 700px;
+            background: #1a1a24;
+            padding: 10px;
+            border-radius: 16px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.6);
+            border: 1px solid #2d2d3f;
+            margin-bottom: 40px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        th, td {
+            padding: 18px 15px;
+            text-align: left;
+        }
+        th {
+            background-color: #252538;
+            color: #d4af37;
+            font-weight: 600;
+            text-transform: uppercase;
+            font-size: 14px;
+            border-bottom: 2px solid #2d2d3f;
+        }
+        td {
+            border-bottom: 1px solid #2d2d3f;
+            font-size: 15px;
+        }
+        tr:last-child td {
+            border-bottom: none;
+        }
+        .price-buy {
+            color: #2ecc71;
+            font-weight: bold;
+            font-size: 16px;
+        }
+        .price-sell {
+            color: #e74c3c;
+            font-weight: bold;
+            font-size: 16px;
+        }
+        .symbol-name {
+            font-weight: 500;
+            color: #e0e0e0;
+        }
+        footer {
+            margin-top: auto;
+            text-align: center;
+            border-top: 1px solid #2d2d3f;
+            width: 100%;
+            max-width: 700px;
+            padding-top: 20px;
+            color: #a0a0a5;
+            font-size: 14px;
+        }
+        .owners {
+            color: #d4af37;
+            font-weight: 600;
+            font-size: 16px;
+            margin-top: 5px;
+            letter-spacing: 0.5px;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="header-container">
+        <h1>RADHE SHYAM JEWELLERS</h1>
+        <div class="subtitle">Live Market Bullion Rates</div>
+        <div class="live-indicator">● Auto Refreshing Every 3 Seconds</div>
+    </div>
+
+    <div class="container">
+        <table>
+            <thead>
+                <tr>
+                    <th>Product Details</th>
+                    <th>BID (Buy)</th>
+                    <th>ASK (Sell)</th>
+                </tr>
+            </thead>
+            <tbody id="live-table-rows">
+                <tr>
+                    <td colspan="3" style="text-align:center; color: #888;">Connecting to market and fetching all live prices...</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <footer>
+        <div>Thank you for visiting. For deals, please contact owners:</div>
+        <div class="owners">Dhansukhbhai Soni & Dev Soni</div>
+    </footer>
+
+    <script>
+        async function fetchRates() {
+            try {
+                const response = await fetch('/api/rates');
+                const data = await response.json();
+                
+                const tableBody = document.getElementById('live-table-rows');
+                tableBody.innerHTML = ''; 
+                
+                if (data.length === 0) {
+                    tableBody.innerHTML = `<tr><td colspan="3" style="text-align:center; color:#e74c3c;">No data received or market is closed.</td></tr>`;
+                    return;
+                }
+
+                data.forEach(item => {
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                        <td class="symbol-name">${item.item_name}</td>
+                        <td class="price-buy">${item.buy_price}</td>
+                        <td class="price-sell">${item.sell_price}</td>
+                    `;
+                    tableBody.appendChild(row);
+                });
+            } catch (error) {
+                console.error("Error updating prices:", error);
+            }
+        }
+
+        fetchRates();
+        // દર ૩ સેકન્ડે પેજ રીફ્રેશ કર્યા વગર નવો લાઈવ ડેટા લોડ થશે
+        setInterval(fetchRates, 3000);
+    </script>
+</body>
+</html>
