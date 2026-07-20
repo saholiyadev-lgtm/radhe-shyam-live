@@ -1,10 +1,11 @@
 from flask import Flask, render_template, jsonify
 import requests
 from bs4 import BeautifulSoup
+import time
 
 app = Flask(__name__)
 
-# તેં મોકલેલા સ્ક્રીનશોટ પ્રમાણેના કન્ફર્મ લાસ્ટ પ્રાઈસ (ડિફોલ્ટ રેટ્સ)
+# ડિફોલ્ટ બેકઅપ રેટ્સ
 last_fetched_rates = [
     {"item_name": "GOLD", "buy_price": "4019.05", "sell_price": "4019.05"},
     {"item_name": "SILVER", "buy_price": "55.99", "sell_price": "55.99"},
@@ -18,29 +19,37 @@ last_fetched_rates = [
 
 def fetch_jk_rates():
     global last_fetched_rates
-    url = "https://jksons.in/"
+    
+    # કેશ (Cache) બાયપાસ કરવા માટે દર વખતે અલગ ટાઈમસ્ટેમ્પ ઉમેરવો
+    url = f"https://jksons.in/?_={int(time.time())}"
+    
     headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Cache-Control': 'no-cache',
+        'Pragma': 'no-cache'
     }
+    
     try:
-        response = requests.get(url, headers=headers, timeout=10)
+        response = requests.get(url, headers=headers, timeout=5)
         if response.status_code == 200:
             soup = BeautifulSoup(response.text, 'html.parser')
             live_data = []
+            
+            # JK Sons ની સાઈટ પર ક્લાસ કે ટેબલ રો શોધો
             rows = soup.find_all('tr')
             
             for row in rows:
                 cells = row.find_all('td')
-                if len(cells) >= 2:
+                if len(cells) >= 3:
                     product = cells[0].text.strip()
-                    rate = cells[1].text.strip()
+                    buy = cells[1].text.strip()
+                    sell = cells[2].text.strip()
                     
-                    # જો ટેબલમાં રેટ પડેલા હોય તો એને લાઈવ અપડેટ કરો
-                    if product and rate:
+                    if product and buy:
                         live_data.append({
                             "item_name": product,
-                            "buy_price": rate,
-                            "sell_price": rate
+                            "buy_price": buy,
+                            "sell_price": sell if sell else buy
                         })
             
             if live_data:
@@ -50,7 +59,6 @@ def fetch_jk_rates():
     except Exception as e:
         print(f"Error fetching data: {e}")
     
-    # જો માર્કેટ બંધ હોય તો સ્ક્રીનશોટ વાળા સેવ કરેલા આંકડા જ બતાવશે
     return last_fetched_rates
 
 @app.route('/')
@@ -60,7 +68,12 @@ def home():
 @app.route('/api/rates')
 def get_rates():
     rates = fetch_jk_rates()
-    return jsonify(rates)
+    response = jsonify(rates)
+    # બ્રાઉઝર અને સર્વરને કેશ કરતા અટકાવવાના હેડર્સ
+    response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+    response.headers['Pragma'] = 'no-cache'
+    response.headers['Expires'] = '0'
+    return response
 
 if __name__ == '__main__':
     app.run(debug=True, port=5000)
