@@ -1,12 +1,11 @@
 from flask import Flask, render_template, jsonify
 import requests
-from bs4 import BeautifulSoup
 import time
 
 app = Flask(__name__)
 
-# ડિફોલ્ટ બેકઅપ રેટ્સ
-last_fetched_rates = [
+# ડિફોલ્ટ બેકઅપ ડેટા
+default_rates = [
     {"item_name": "GOLD", "buy_price": "4019.05", "sell_price": "4019.05"},
     {"item_name": "SILVER", "buy_price": "55.99", "sell_price": "55.99"},
     {"item_name": "USD INR", "buy_price": "96.320", "sell_price": "96.320"},
@@ -18,48 +17,27 @@ last_fetched_rates = [
 ]
 
 def fetch_jk_rates():
-    global last_fetched_rates
-    
-    # કેશ (Cache) બાયપાસ કરવા માટે દર વખતે અલગ ટાઈમસ્ટેમ્પ ઉમેરવો
-    url = f"https://jksons.in/?_={int(time.time())}"
+    # JK Sons નું લાઈવ AJAX / Socket API Endpoint
+    # અહીં જ ડાયરેક્ટ રિયલ-ટાઇમ લાઈવ રેટ્સ આવે છે
+    url = f"https://jksons.in/webservices/getrates.php?_={int(time.time()*1000)}"
     
     headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'Cache-Control': 'no-cache',
-        'Pragma': 'no-cache'
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        'Accept': 'application/json, text/javascript, */*; q=0.01',
+        'X-Requested-With': 'XMLHttpRequest',
+        'Referer': 'https://jksons.in/'
     }
     
     try:
         response = requests.get(url, headers=headers, timeout=5)
         if response.status_code == 200:
-            soup = BeautifulSoup(response.text, 'html.parser')
-            live_data = []
-            
-            # JK Sons ની સાઈટ પર ક્લાસ કે ટેબલ રો શોધો
-            rows = soup.find_all('tr')
-            
-            for row in rows:
-                cells = row.find_all('td')
-                if len(cells) >= 3:
-                    product = cells[0].text.strip()
-                    buy = cells[1].text.strip()
-                    sell = cells[2].text.strip()
-                    
-                    if product and buy:
-                        live_data.append({
-                            "item_name": product,
-                            "buy_price": buy,
-                            "sell_price": sell if sell else buy
-                        })
-            
-            if live_data:
-                last_fetched_rates = live_data
-                return live_data
-                
+            data = response.json()
+            if data:
+                return data
     except Exception as e:
-        print(f"Error fetching data: {e}")
-    
-    return last_fetched_rates
+        print(f"Error fetching live API: {e}")
+        
+    return default_rates
 
 @app.route('/')
 def home():
@@ -69,7 +47,7 @@ def home():
 def get_rates():
     rates = fetch_jk_rates()
     response = jsonify(rates)
-    # બ્રાઉઝર અને સર્વરને કેશ કરતા અટકાવવાના હેડર્સ
+    # કેશિંગ બંધ કરવા માટે હેડર્સ
     response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
     response.headers['Pragma'] = 'no-cache'
     response.headers['Expires'] = '0'
