@@ -1,43 +1,66 @@
 from flask import Flask, render_template, jsonify
 import requests
+from bs4 import BeautifulSoup
 import time
 
 app = Flask(__name__)
 
-# ડિફોલ્ટ બેકઅપ ડેટા
-default_rates = [
-    {"item_name": "GOLD", "buy_price": "4019.05", "sell_price": "4019.05"},
-    {"item_name": "SILVER", "buy_price": "55.99", "sell_price": "55.99"},
-    {"item_name": "USD INR", "buy_price": "96.320", "sell_price": "96.320"},
-    {"item_name": "GLD 999 IMP AMD T+1", "buy_price": "146230", "sell_price": "146230"},
-    {"item_name": "GLD 999 IMP RJT T+1", "buy_price": "146250", "sell_price": "146250"},
-    {"item_name": "SLVCHORSA T+1", "buy_price": "221000", "sell_price": "221000"},
-    {"item_name": "SLVPETI999 T+1", "buy_price": "225000", "sell_price": "225000"},
-    {"item_name": "SLV 999 (1 KG BAR) T+1", "buy_price": "227000", "sell_price": "227000"}
+# ડિફોલ્ટ બેકઅપ
+last_fetched_rates = [
+    {"item_name": "GOLD", "buy_price": "4042.05", "sell_price": "4042.05"},
+    {"item_name": "SILVER", "buy_price": "57.62", "sell_price": "57.62"},
+    {"item_name": "USD INR", "buy_price": "95.390", "sell_price": "95.390"},
+    {"item_name": "GLD 999 IMP AMD T+1", "buy_price": "147260", "sell_price": "147260"},
+    {"item_name": "GLD 999 IMP RJT T+1", "buy_price": "147280", "sell_price": "147280"},
+    {"item_name": "SLVCHORSA T+1", "buy_price": "220580", "sell_price": "220580"},
+    {"item_name": "SLVPETI999 T+1", "buy_price": "224500", "sell_price": "224500"},
+    {"item_name": "SLV 999 (1 KG BAR) T+1", "buy_price": "226500", "sell_price": "226500"}
 ]
 
 def fetch_jk_rates():
-    # JK Sons નું લાઈવ AJAX / Socket API Endpoint
-    # અહીં જ ડાયરેક્ટ રિયલ-ટાઇમ લાઈવ રેટ્સ આવે છે
-    url = f"https://jksons.in/webservices/getrates.php?_={int(time.time()*1000)}"
+    global last_fetched_rates
+    
+    # કેશિંગ બાયપાસ કરવા માટે ટાઈમસ્ટેમ્પ
+    timestamp = int(time.time() * 1000)
+    url = f"https://jksons.in/?_={timestamp}"
     
     headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-        'Accept': 'application/json, text/javascript, */*; q=0.01',
-        'X-Requested-With': 'XMLHttpRequest',
-        'Referer': 'https://jksons.in/'
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Cache-Control': 'no-cache',
+        'Pragma': 'no-cache'
     }
     
     try:
-        response = requests.get(url, headers=headers, timeout=5)
+        response = requests.get(url, headers=headers, timeout=6)
         if response.status_code == 200:
-            data = response.json()
-            if data:
-                return data
+            soup = BeautifulSoup(response.text, 'html.parser')
+            live_data = []
+            
+            # JK Sons ના ટેબલમાંથી તમામ રો (rows) શોધો
+            rows = soup.find_all('tr')
+            
+            for row in rows:
+                cells = row.find_all('td')
+                if len(cells) >= 2:
+                    product = cells[0].text.strip()
+                    rate = cells[1].text.strip()
+                    
+                    # જો પ્રોડક્ટ અને રેટ સાચા મળ્યા હોય તો એડ કરો
+                    if product and rate and product.upper() != "SYMBOL":
+                        live_data.append({
+                            "item_name": product,
+                            "buy_price": rate,
+                            "sell_price": rate
+                        })
+            
+            if len(live_data) > 0:
+                last_fetched_rates = live_data
+                return live_data
+                
     except Exception as e:
-        print(f"Error fetching live API: {e}")
-        
-    return default_rates
+        print(f"Error fetching data: {e}")
+    
+    return last_fetched_rates
 
 @app.route('/')
 def home():
@@ -47,7 +70,6 @@ def home():
 def get_rates():
     rates = fetch_jk_rates()
     response = jsonify(rates)
-    # કેશિંગ બંધ કરવા માટે હેડર્સ
     response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
     response.headers['Pragma'] = 'no-cache'
     response.headers['Expires'] = '0'
