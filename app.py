@@ -2,6 +2,7 @@ from flask import Flask, render_template, jsonify
 import requests
 import xml.etree.ElementTree as ET
 
+
 app = Flask(__name__)
 
 API = "https://bcast.jksons.in:7768/VOTSBroadcastStreaming/Services/xml/GetLiveRateByTemplateID/jksons"
