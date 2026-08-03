@@ -5,49 +5,46 @@ import time
 
 app = Flask(__name__)
 
-# કેશ અને ટાઈમસ્ટોર
-cached_data = []
-last_fetch_time = 0
+# છેલ્લો સાચો ડેટા સાચવી રાખવા માટે (જેથી ક્યારેય સાઈટ ખાલી ના થાય)
+last_valid_data = []
 
 def fetch_live_jk_rates():
-    global cached_data, last_fetch_time
-    current_time = time.time()
+    global last_valid_data
     
-    # દર ૧ સેકન્ડે જ નવો ડેટા લાવશે જેથી JK Sons પર લોડ ના પડે અને રિસ્પોન્સ ફાસ્ટ રહે
-    if current_time - last_fetch_time < 1 and cached_data:
-        return cached_data
-
-    timestamp = int(current_time * 1000)
+    timestamp = int(time.time() * 1000)
     url = f"https://jksons.in/?_={timestamp}"
     
     headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+        'Cache-Control': 'no-cache',
         'Pragma': 'no-cache'
     }
     
     try:
-        response = requests.get(url, headers=headers, timeout=4)
+        response = requests.get(url, headers=headers, timeout=5)
         if response.status_code == 200:
             soup = BeautifulSoup(response.text, 'html.parser')
             live_data = []
             
+            # ટેબલમાંથી રો શોધો
             rows = soup.find_all('tr')
             for row in rows:
-                cells = row.find_all('td')
+                cells = row.find_all(['td', 'th'])
                 if len(cells) >= 2:
                     product = cells[0].text.strip()
                     rate = cells[1].text.strip()
                     
-                    if product and rate and product.upper() != "SYMBOL":
+                    # હેડર વગરનો સાચો ભાવ જ ફિલ્ટર કરો
+                    if product and rate and "SYMBOL" not in product.upper() and "RATE" not in rate.upper():
                         live_data.append({
                             "item_name": product,
                             "buy_price": rate,
                             "sell_price": rate
                         })
                         
-                        # RJT ગોલ્ડનો લાઈવ ભાવ પકડીને 22 અને 18 કેરેટ ઓટો-કેલ્ક્યુલેટ કરો
-                        if "GLD 999 IMP RJT" in product.upper():
+                        # GLD 999 IMP RJT નો ભાવ પકડીને 22K અને 18K ગણો
+                        if "GLD 999" in product.upper() and "RJT" in product.upper():
                             try:
                                 clean_rate = float(rate.replace(',', ''))
                                 
@@ -68,14 +65,14 @@ def fetch_live_jk_rates():
                                 pass
 
             if len(live_data) > 0:
-                cached_data = live_data
-                last_fetch_time = current_time
+                last_valid_data = live_data
                 return live_data
 
     except Exception as e:
-        print(f"Error fetching live data: {e}")
+        print(f"Fetch Error: {e}")
         
-    return cached_data
+    # જો કોઈ કારણસર નવો ડેટા ના મળે તો જૂનો સાચો ડેટા બતાવો પણ સ્ક્રીન ખાલી ના થવા દો
+    return last_valid_data
 
 @app.route('/')
 def home():
@@ -86,8 +83,6 @@ def get_rates():
     rates = fetch_live_jk_rates()
     response = jsonify(rates)
     response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
-    response.headers['Pragma'] = 'no-cache'
-    response.headers['Expires'] = '0'
     return response
 
 if __name__ == '__main__':
