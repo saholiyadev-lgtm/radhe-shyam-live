@@ -5,8 +5,16 @@ app = Flask(__name__)
 
 API_URL = "https://bcast.jksons.in:7768/VOTSBroadcastStreaming/Services/xml/GetLiveRateByTemplateID/jksons"
 
-# છેલ્લો valid data
 last_data = []
+
+
+def is_number(value):
+    try:
+        float(value.replace(",", ""))
+        return True
+    except:
+        return False
+
 
 def fetch_rates():
     global last_data
@@ -25,6 +33,7 @@ def fetch_rates():
         data = []
 
         for line in lines:
+
             line = line.strip()
 
             if not line:
@@ -32,34 +41,26 @@ def fetch_rates():
 
             parts = line.split()
 
-            # પહેલી value code હોવી જોઈએ
+            if len(parts) < 3:
+                continue
+
+            # First column must be item code
             if not parts[0].isdigit():
                 continue
 
-            # પ્રથમ number શોધો (product name પછી)
-            first_num = None
-
-            for i in range(1, len(parts)):
-                try:
-                    float(parts[i].replace(",", ""))
-                    first_num = i
-                    break
-                except:
-                    continue
-
-            if first_num is None:
+            # Last 4 values are prices
+            if len(parts) < 6:
                 continue
 
-            name = " ".join(parts[1:first_num])
+            prices = parts[-4:]
 
-            numbers = parts[first_num:]
+            if not all(is_number(x) for x in prices):
+                continue
 
-            buy = numbers[0]
+            name = " ".join(parts[1:-4])
 
-            if len(numbers) > 1:
-                sell = numbers[1]
-            else:
-                sell = buy
+            buy = prices[0]
+            sell = prices[1]
 
             data.append({
                 "item_name": name,
@@ -67,8 +68,8 @@ def fetch_rates():
                 "sell_price": sell
             })
 
-        # 22K અને 18K Auto Calculate
-        for item in data.copy():
+        # Auto calculate 22K & 18K
+        for item in list(data):
 
             if "GLD 999 IMP RJT" in item["item_name"]:
 
@@ -76,29 +77,29 @@ def fetch_rates():
 
                     rate = float(item["buy_price"].replace(",", ""))
 
-                    rate22 = round(rate * 22 / 24, 2)
-                    rate18 = round(rate * 18 / 24, 2)
+                    c22 = round(rate * 22 / 24, 2)
+                    c18 = round(rate * 18 / 24, 2)
 
                     data.append({
                         "item_name": "GLD 22 CARAT (RJT)",
-                        "buy_price": f"{rate22:.2f}",
-                        "sell_price": f"{rate22:.2f}"
+                        "buy_price": f"{c22:.2f}",
+                        "sell_price": f"{c22:.2f}"
                     })
 
                     data.append({
                         "item_name": "GLD 18 CARAT (RJT)",
-                        "buy_price": f"{rate18:.2f}",
-                        "sell_price": f"{rate18:.2f}"
+                        "buy_price": f"{c18:.2f}",
+                        "sell_price": f"{c18:.2f}"
                     })
 
-                except:
-                    pass
+                except Exception as e:
+                    print(e)
 
         if data:
             last_data = data
 
     except Exception as e:
-        print("ERROR:", e)
+        print("Fetch Error:", e)
 
     return last_data
 
@@ -109,7 +110,7 @@ def home():
 
 
 @app.route("/api/rates")
-def api_rates():
+def rates():
     response = jsonify(fetch_rates())
     response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
     response.headers["Pragma"] = "no-cache"
